@@ -116,8 +116,7 @@ class WCS:
 
         return degrees(ra),degrees(dec)
 
-    def pix2skyBroken(self,px,py):
-
+    def pix2sky_vec(self,px,py):
         '''
         A pywcs.wcs.pix2sky equivalent.
         INPUT:    px    - pixel value in x-dimension
@@ -125,49 +124,56 @@ class WCS:
         OUTPUT:    Corresponding ra,dec in decimal degrees
         '''
 
+        # Reshape into array
+        if np.shape(px)==():
+            px = np.reshape(px,-1)
+            py = np.reshape(py,-1)
+
         # pixel coordinates to intermediate world coordinates
         # the +1. is to account for python's 0-indexing
         x = self.CDELT1 * (py - self.CRPIX1 + 1.)
         y = self.CDELT2 * (px - self.CRPIX2 + 1.)
-        
-        # projection plane coordinates to native longitude and latitude
-        try:
-            thetap = np.arcsin(
-                        np.sqrt( -( (np.pi/180. * x)**2. + (np.pi/180. * y)**2. - 1 ) )
-                        )
-            try:
-                thetam = np.arcsin(
-                            -np.sqrt( -( (np.pi/180. * x)**2. + (np.pi/180. * y)**2. - 1 ) )
-                            )
 
+        theta = np.arcsin(np.sqrt(1.-np.power(x*np.pi/180.,2.)-np.power(y*np.pi/180.,2.)))
+        theta = np.abs(theta)
+        phi = np.arctan2(-y*np.pi/180.,x*np.pi/180.)
+        
+        ### Take arc sin
+        """
+        try:
+            thetap = asin( sqrt( -( (pi/180. * x)**2. + (pi/180. * y)**2. - 1 ) ) )
+
+            ### Take second arcsin
+            try:
+                thetam = asin( -sqrt( -( (pi/180. * x)**2. + (pi/180. * y)**2. - 1 ) ) )
                 # both +/- are valid
-                if abs(np.pi/2. - thetap) > abs(np.pi/2. - thetam):
+                if abs(pi/2. - thetap) > abs(pi/2. - thetam):
                     theta = thetam
-                elif abs(np.pi/2. - thetap) < abs(np.pi/2. - thetam):
+                elif abs(pi/2. - thetap) < abs(pi/2. - thetam):
                     theta = thetap
 
+            ### If second arcsin doesn't work...
             except ValueError:
                 theta = thetap    # only + is valid
 
+        ### If arcsin doesn't work flip sign
         except ValueError:
+
+            ### Second arcsin
             try:
-                thetam = np.arcsin(
-                            -np.sqrt( -( (np.pi/180. * x)**2. + (np.pi/180. * y)**2. - 1 ) )
-                            )
+                thetam = asin( -sqrt( -( (pi/180. * x)**2. + (pi/180. * y)**2. - 1 ) ) )
                 theta  = thetam
             except:        # neither +/- are valid
                 theta  = np.nan
-
-        phi = np.arctan2(-np.pi/180. * y, np.pi/180. * x)
+        phi = atan2(-pi/180. * y, pi/180. * x)
+        """
 
         # spherical coordinate rotation
-        ra  = np.radians(self.CRVAL1) \
-                + np.arctan2(
-                    -np.cos(theta)*np.sin(phi-np.radians(self.phi_p)), 
-                    np.sin(theta)*np.cos(radians(self.CRVAL2))
-                        - np.cos(theta)*np.sin(np.radians(self.CRVAL2))*np.cos(phi-np.radians(self.phi_p)) )
-        dec = np.arcsin(
-                np.sin(theta)*np.sin(radians(self.CRVAL2))
-                    + np.cos(theta)*np.cos(np.radians(self.CRVAL2))*np.cos(phi-np.radians(self.phi_p)) )
+        ra  = np.radians(self.CRVAL1) + np.arctan2( -np.cos(theta)*np.sin(phi-np.radians(self.phi_p)), 
+            np.sin(theta)*np.cos(np.radians(self.CRVAL2)) - 
+            np.cos(theta)*np.sin(np.radians(self.CRVAL2))*np.cos(phi-np.radians(self.phi_p)) )
+        dec = np.arcsin( np.sin(theta)*np.sin(np.radians(self.CRVAL2)) + 
+            np.cos(theta)*np.cos(np.radians(self.CRVAL2))*np.cos(phi-np.radians(self.phi_p)) )
 
         return np.degrees(ra),np.degrees(dec)
+
